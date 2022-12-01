@@ -1,74 +1,72 @@
 ---
 - hosts: ec2
   gather_facts: no
-  remote_user: ubuntu
-  become: true
+  remote_user: ec2-user
   vars:
       init_cronos_version: cronos_0.8.0_Linux_x86_64.tar.gz
+      remote_user: ec2-user
   tasks:
-
     - name: Download Cronos Mainnet binaries
       ansible.builtin.get_url:
-        url: https://github.com/crypto-org-chain/cronos/releases/download/v0.8.0/"{{ init_cronos_version }}"
-        dest: /tmp/"{{ init_cronos_version }}"
+        url: https://github.com/crypto-org-chain/cronos/releases/download/v0.8.0/{{ init_cronos_version }}
+        dest: /home/{{ remote_user }}
     - name: Unarchive
-      ansible.builtin.unarchive:
-        src: /tmp/"{{ init_cronos_version }}"
-        dest: /home/ubuntu/bin/
-        remote_src: yes
-    - name: init cronosd
-      ansible.builtin.shell: cronosd init jason-prunned-node --chain-id cronosmainnet_25-1
+      ansible.builtin.shell: tar -zxvf {{ init_cronos_version }}
+#    - name: init cronosd
+#      ansible.builtin.shell: cronosd init jason-prunned-node --chain-id cronosmainnet_25-1
     - name: Download and replace jenesis
       ansible.builtin.get_url:
         url: https://raw.githubusercontent.com/crypto-org-chain/cronos-mainnet/master/cronosmainnet_25-1/genesis.json
-        dest: /home/ubuntu/.cronos/config/genesis.json
+        dest: /home/{{ remote_user }}/.cronos/config/genesis.json
     - name: replace seeds
       lineinfile:
-        path: /home/ubuntu/.cronos/config/config.toml
+        path: /home/{{ remote_user }}/.cronos/config/config.toml
         regexp: '^(.*)seeds = ""(.*)$'
         line: 'seeds = "0d5cf1394a1cfde28dc8f023567222abc0f47534@cronos-seed-0.crypto.org:26656,3032073adc06d710dd512240281637c1bd0c8a7b@cronos-seed-1.crypto.org:26656,04f43116b4c6c70054d9c2b7485383df5b1ed1da@cronos-seed-2.crypto.org:26656,337377dcda43d79c537d2c4d93ad3b698ce9452e@bd-cronos-mainnet-seed-node-01.bdnodes.net:26656"'
         backrefs: yes
     - name: replace create_empty_blocks_interval
       lineinfile:
-        path: /home/ubuntu/.cronos/config/config.toml
+        path: /home/{{ remote_user }}/.cronos/config/config.toml
         regexp: '^(.*)create_empty_blocks_interval = "0s"(.*)$'
         line: 'create_empty_blocks_interval= "5s"'
         backrefs: yes
     - name: Replace timeout_commit
       lineinfile:
-        path: /home/ubuntu/.cronos/config/config.toml
+        path: /home/{{ remote_user }}/.cronos/config/config.toml
         regexp: '^(.*)timeout_commit = "0s"(.*)$'
         line: 'timeout_commit= "5s"'
         backrefs: yes
     - name: Replace pruning
       lineinfile:
-        path: /home/ubuntu/.cronos/config/app.toml
+        path: /home/{{ remote_user }}/.cronos/config/app.toml
         regexp: '^(.*)pruning = "default"(.*)$'
         line: 'pruning = "everything"'
         backrefs: yes
     - name: Enable prometheus
       lineinfile:
-        path: /home/ubuntu/.cronos/config/config.toml
+        path: /home/{{ remote_user }}/.cronos/config/config.toml
         regexp: '^(.*)prometheus = "false"(.*)$'
         line: 'prometheus = "true"'
         backrefs: yes
     - name: Download systemd config
       ansible.builtin.get_url:
         url: https://raw.githubusercontent.com/crypto-org-chain/cronos-mainnet/master/cronosmainnet_25-1/genesis.json
-        dest: /home/ubuntu/.cronos/config/genesis.json
+        dest: /home/{{ remote_user }}/.cronos/config/genesis.json
         checksum: sha256:58f17545056267f57a2d95f4c9c00ac1d689a580e220c5d4de96570fbbc832e1
     - name: Install required system packages
-      ansible.builtin.apt:
+      ansible.builtin.yum:
         name:
-          - liblz4-tool
-          - aria2
+          - lz4
           - jq
-           - net-tools
+          - net-tools
         state: present
-        update_cache: true
       become: true
-    - name: Download Prunned archive
-      ansible.builtin.shell: curl -o - -L https://dl2.quicksync.io/cronosmainnet_25-1-leveldb-pruned.20221127.2010.tar.lz4 | lz4 -c -d - | tar -x -C /home/ubuntu/.cronos/data/
+    - name: Download Cronos Mainnet binaries
+      ansible.builtin.get_url:
+        url: https://dl2.quicksync.io/cronosmainnet_25-1-leveldb-pruned.20221130.2010.tar.lz4
+        dest: /home/{{ remote_user }}/.cronos
+    - name: Unarchive
+      ansible.builtin.shell: lz4 -d /home/{{ remote_user }}/.cronos/cronosmainnet_25-1-leveldb-pruned.20221130.2010.tar.lz4 | tar -xv
     - name: Download systemcd file
       ansible.builtin.shell:   curl -s https://raw.githubusercontent.com/crypto-org-chain/cronos-docs/master/systemd/create-service.sh -o create-service.sh && curl -s https://raw.githubusercontent.com/crypto-org-chain/cronos-docs/master/systemd/cronosd.service.template -o cronosd.service.template
     - name: Download Prunned archive
